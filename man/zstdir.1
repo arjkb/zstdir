@@ -1,0 +1,180 @@
+.Dd October 24, 2026
+.Dt ZSTDIR 1
+.Os
+.Sh NAME
+.Nm zstdir ,
+.Nm unzstdir
+.Nd compress and extract directories with zstd
+.Sh SYNOPSIS
+.Nm
+.Op Fl cfqv
+.Op Fl L Ar level
+.Op Fl T Ar threads
+.Op Fl o Ar path
+.Ar dir ...
+.Nm
+.Op Fl fqv
+.Op Fl T Ar threads
+.Op Fl o Ar path
+.Ar archive ...
+.Nm
+.Fl d
+.Op Fl fqv
+.Op Fl T Ar threads
+.Op Fl o Ar path
+.Op Ar archive | Fl
+.Nm unzstdir
+.Op Ar options
+.Op Ar archive ...
+.Nm
+.Fl h | V
+.Sh DESCRIPTION
+.Nm
+packs a directory into a zstd-compressed tar archive, or unpacks one, in a
+single step.
+The mode is chosen from each argument: a directory is compressed into
+.Ar dir Ns Pa .tar.zst ,
+and a zstd file (recognized by its contents, not its name) is extracted.
+.Nm unzstdir
+is the same program and always extracts, like
+.Fl d .
+.Pp
+Outputs are written next to their inputs.
+Archives are first written to a temporary file and extractions to a
+temporary directory, renamed into place only when complete, so a failed or
+interrupted run leaves nothing behind.
+An existing archive is only overwritten with
+.Fl f ;
+an existing directory is never replaced.
+.Pp
+Archives are plain tar inside zstd and can be read and written by other
+tools, for example
+.Ql tar --zstd -xf dir.tar.zst
+or
+.Ql zstd -dc dir.tar.zst | tar -xf - .
+Entries are stored under the directory's name, so plain tar also recreates
+the directory itself.
+.Ss Extraction
+When an archive holds a single top-level directory, its contents become the
+output directory: the archive name without its
+.Pa .tar.zst ,
+.Pa .tar.zstd ,
+.Pa .tzst ,
+.Pa .zst
+or
+.Pa .zstd
+suffix, or
+.Ar path
+given with
+.Fl o .
+An archive with several top-level entries is extracted into that directory
+instead of spilling them into the current one.
+When reading standard input without
+.Fl o ,
+the archive's single top-level directory is created in the current
+directory.
+.Pp
+Entries that would land outside the output directory, through
+.Ql .. ,
+absolute paths or symbolic links, are rejected.
+Regular files, directories, symbolic links and hard links are extracted
+with their permission bits (minus the umask; setuid, setgid and sticky bits
+are dropped) and modification times.
+Ownership is not restored.
+The
+.Pa ._*
+AppleDouble files that macOS tar adds to carry extended attributes are
+skipped.
+.Ss Compression
+Regular files, directories and symbolic links are archived; symbolic links
+are stored as links, not followed.
+Devices, sockets and FIFOs are skipped with a warning, and hard links are
+stored as separate files.
+Extended attributes and ACLs are not stored.
+.Pp
+With more than one thread, the archive is written as a series of
+independently compressed zstd frames, which any zstd decoder reads as one
+stream.
+This lets compression use several cores at the cost of a slightly lower
+ratio.
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl d , Fl -decompress
+Extract.
+Without an
+.Ar archive ,
+or with
+.Fl ,
+the archive is read from standard input.
+.It Fl o , Fl -output Ns = Ns Ar path
+Name of the archive when compressing, or of the directory to create when
+extracting.
+Only valid with a single input.
+.It Fl c , Fl -stdout
+Write the archive to standard output instead of a file.
+Only valid when compressing a single directory.
+.It Fl f , Fl -force
+Overwrite an existing archive, write an archive to a terminal, or read one
+from a terminal.
+.It Fl v , Fl -verbose
+List each entry on standard error as it is processed.
+Given twice, also print a summary for each input: the input and output,
+the number of files, directories and symbolic links, the size before and
+after, the ratio and space saved, and the time and throughput.
+.It Fl q , Fl -quiet
+Do not print warnings.
+.It Fl L , Fl -level Ns = Ns Ar level
+Compression level from 1 to 22; the default is 3.
+Levels are mapped to the four speed tiers of the Go zstd encoder used:
+1\(en2 fastest, 3\(en5 default, 6\(en9 better, 10 and above best.
+.It Fl T , Fl -threads Ns = Ns Ar threads
+Number of threads to use; 0, the default, means one per CPU, up to 8.
+.It Fl h , Fl -help
+Print usage and exit.
+.It Fl V , Fl -version
+Print the version and exit.
+.El
+.Sh EXIT STATUS
+.Bl -tag -width Ds -compact
+.It 0
+Success.
+.It 1
+An error occurred.
+With several inputs, the others are still processed.
+.It 2
+Invalid command line.
+.It 130
+Interrupted.
+.El
+.Sh EXAMPLES
+Compress
+.Pa photos/
+into
+.Pa photos.tar.zst ,
+then extract it again:
+.Bd -literal -offset indent
+zstdir photos
+zstdir photos.tar.zst
+.Ed
+.Pp
+Choose the output names:
+.Bd -literal -offset indent
+zstdir -o backup.tar.zst photos
+zstdir -o restored backup.tar.zst
+.Ed
+.Pp
+Copy a directory to another host:
+.Bd -literal -offset indent
+zstdir -c project | ssh host zstdir -d
+.Ed
+.Pp
+Compress several directories, with a summary for each:
+.Bd -literal -offset indent
+zstdir -vv src docs assets
+.Ed
+.Sh SEE ALSO
+.Xr tar 1 ,
+.Xr zstd 1
+.Sh AUTHORS
+.An arjkb ,
+.Lk https://github.com/arjkb/zstdir
