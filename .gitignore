@@ -1,0 +1,31 @@
+# Binaries from `go build`, and an unzstdir alias made next to them
+/zstdir
+/unzstdir
+
+# Release and build output
+/dist/
+
+# Go test and profiling output
+*.test
+*.out
+*.prof
+
+# Local workspace files
+go.work
+go.work.sum
+
+# Archives made while trying zstdir out in the repo
+/*.tar.zst
+/*.tar.zstd
+/*.tzst
+
+# Leftovers from a zstdir run that was killed before it could clean up
+.*.tmp-*
+.zstdir-*/
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
