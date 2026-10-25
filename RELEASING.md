@@ -17,12 +17,27 @@ needs bumping.
 
    ```sh
    brew tap-new arjkb/homebrew-tap
+   ```
+
+   This creates the tap locally, in `$(brew --repository arjkb/homebrew-tap)`,
+   wherever it is run from. Publish it with `gh`:
+
+   ```sh
    gh repo create arjkb/homebrew-tap --public --push \
      --source "$(brew --repository arjkb/homebrew-tap)"
    ```
 
-3. In the tap repository's settings, go to **Actions → General → Workflow
-   permissions** and select **Read and write permissions**. The publish
+   or, without `gh`, create an empty public `homebrew-tap` repository on
+   GitHub and push to it:
+
+   ```sh
+   cd "$(brew --repository arjkb/homebrew-tap)"
+   git remote add origin git@github.com:arjkb/homebrew-tap.git
+   git push -u origin main
+   ```
+
+3. In the tap repository's **Settings → Actions → General → Workflow
+   permissions**, select **Read and write permissions**. The publish
    workflow needs this to upload bottles and push the formula update.
 
 Users then install with `brew install arjkb/tap/zstdir`. Homebrew maps
@@ -48,13 +63,25 @@ Users then install with `brew install arjkb/tap/zstdir`. Homebrew maps
    ```
 
 4. Update the formula in the tap, on a branch:
+
+   ```sh
+   cd "$(brew --repository arjkb/homebrew-tap)"
+   git checkout main && git pull
+   git checkout -b zstdir-X.Y.Z
+   ```
+
    - **First release:** copy `packaging/homebrew/zstdir.rb` to
-     `Formula/zstdir.rb` in the tap, then set `url` and `sha256`.
+     `Formula/zstdir.rb` in the tap, drop the two template comment lines at
+     the top, then set `url` and `sha256`.
    - **Later releases:** change `url` and `sha256` in `Formula/zstdir.rb`.
      Leave the `bottle do` block alone; it is rewritten when bottles are
      published.
 
-   Check it locally:
+   `sha256` is only the 64-character hash `shasum` prints, not the `-`
+   after it. `brew style arjkb/tap/zstdir` checks the formula without
+   building it. A full local check is optional, since the pull request's CI
+   does the same, and it installs Homebrew's own Go as a build dependency
+   (`brew autoremove` removes it afterwards):
 
    ```sh
    brew install --build-from-source arjkb/tap/zstdir
@@ -62,12 +89,22 @@ Users then install with `brew install arjkb/tap/zstdir`. Homebrew maps
    brew audit --strict --online arjkb/tap/zstdir   # add --new for the first release
    ```
 
-5. Open a pull request in the tap with the formula change. Its CI
-   (`brew test-bot`) builds and tests bottles.
-6. When the checks pass, add the **`pr-pull`** label to the pull request.
-   The publish workflow then:
+5. Commit as `zstdir X.Y.Z` (`zstdir X.Y.Z (new formula)` for the first),
+   push the branch and open a pull request in the tap. Its CI
+   (`brew test-bot`) builds and tests bottles for macOS and Linux.
+6. When the checks pass, publish: in the tap's **Actions** tab, select
+   **brew pr-pull**, click **Run workflow**, and enter the pull request
+   number. (No label is needed; the workflow only runs by hand.) It:
    - uploads the bottles to a release in the tap;
    - pushes the formula with its `bottle do` block to `main`;
-   - closes the pull request.
+   - closes the pull request. GitHub shows it as "closed with unmerged
+     commits" because the commits were rewritten; that is expected.
+7. Delete the pull request's branch on GitHub, and update the local tap:
+
+   ```sh
+   cd "$(brew --repository arjkb/homebrew-tap)"
+   git checkout main && git pull
+   git branch -D zstdir-X.Y.Z
+   ```
 
 `brew upgrade` will now pick up the new version.
